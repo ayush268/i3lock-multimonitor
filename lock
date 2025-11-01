@@ -23,9 +23,19 @@ if ! [ -e $CACHE_FOLDER ]; then
 fi
 
 #Passed arguments
-while getopts ":i:a:d:" opt; do
+while getopts ":i:ra:d:" opt; do
     case $opt in
         i) arg_image="$OPTARG"
+        ;;
+        r) RAND_IMAGE=1
+           # If the next word exists and isn't another option, treat it as r's value
+           next="${!OPTIND:-}"
+           if [[ -n "$next" && "$next" != -* ]]; then
+             rand_image_folder="$next"
+             ((OPTIND++))   # consume it
+           else
+             rand_image_folder=""  # or set a default here
+           fi
         ;;
         a) lock_args="$OPTARG"
         ;;
@@ -37,9 +47,24 @@ while getopts ":i:a:d:" opt; do
     esac
 done
 
+echo "RAND-$RAND_IMAGE"
+
 #Image paths
 if [ "$arg_image" ]; then
     BKG_IMG="$arg_image"  # Passed image
+elif [ "$RAND_IMAGE" = 1 ]; then
+    WALLPAPERS="$HOME/Pictures/wallpapers"
+    if test -d "$rand_image_folder"; then
+      WALLPAPERS="$rand_image_folder"
+    fi
+    if test -d "$WALLPAPERS/selected_lock"; then
+      WALLPAPERS="$WALLPAPERS/selected_lock"
+    fi
+    arr=(`ls $WALLPAPERS`)
+    RANDOM=$$$(date +%s)
+    rand=$[$RANDOM % ${#arr[@]}]
+    path="$WALLPAPERS/${arr[$rand]}"
+    BKG_IMG="$path"
 elif [ -f "/usr/share/i3lock-multimonitor/img/background.png" ]; then
     BKG_IMG="/usr/share/i3lock-multimonitor/img/background.png"  # Default image
 else
@@ -51,6 +76,7 @@ if ! [ -e "$BKG_IMG" ]; then
     exit 2
 fi
 
+# For Random wallpaper
 MD5_BKG_IMG=$(md5sum $BKG_IMG | cut -c 1-10)
 MD5_SCREEN_CONFIG=$(xrandr | md5sum - | cut -c 1-32) # Hash of xrandr output
 OUTPUT_IMG="$CACHE_FOLDER""$MD5_SCREEN_CONFIG"."$MD5_BKG_IMG".png # Path of final image
@@ -93,7 +119,7 @@ do
     ## if cache for that screensize doesnt exist
     if ! [ -e $CACHE_IMG ]
     then
-	# Create image for that screensize
+  # Create image for that screensize
         eval convert '$BKG_IMG' '-resize' '${SCREEN_WIDTH}X${SCREEN_HEIGHT}^' '-gravity' 'Center' '-crop' '${SCREEN_WIDTH}X${SCREEN_HEIGHT}+0+0' '+repage' '$CACHE_IMG'
     fi
 
